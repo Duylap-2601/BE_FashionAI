@@ -1,4 +1,5 @@
 import { Injectable, HttpException, HttpStatus, Logger, StreamableFile } from '@nestjs/common';
+import { Multer } from 'multer';
 import axios from 'axios';
 
 /**
