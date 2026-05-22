@@ -1,51 +1,63 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 
-/**
- * Bootstrap function - Khởi động ứng dụng NestJS
- */
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
-  // Prefix chung cho tất cả routes
+  // ─── Global Prefix ───────────────────────────────────────────────────────
   app.setGlobalPrefix('api');
 
-  // Enable CORS nếu cần
+  // ─── CORS ────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: '*', // Điều chỉnh theo môi trường thực
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    origin: process.env.CORS_ORIGIN ?? '*',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Global validation pipes
+  // ─── Global Exception Filter ─────────────────────────────────────────────
+  app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // ─── Global Validation Pipe ───────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
-  // Swagger Configuration
-  const config = new DocumentBuilder()
+  // ─── Swagger ─────────────────────────────────────────────────────────────
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('AI Fashion Try-On API')
-    .setDescription('The Virtual Try-On API documentation')
-    .setVersion('1.0')
+    .setDescription(
+      `## Hệ thống thử đồ AI tích hợp 2 công nghệ:\n` +
+      `- **Virtual Try-On** (Kolors): Tạo ảnh thử đồ thực tế\n` +
+      `- **AI Stylist** (Gemini Vision): Phân tích Personal Color & Tư vấn phong cách`,
+    )
+    .setVersion('2.0.0')
+    .addTag('Health', 'Kiểm tra trạng thái API')
+    .addTag('Virtual Try-On', 'Thử đồ ảo bằng AI Kolors')
+    .addTag('AI Stylist', 'Tư vấn phong cách bằng Gemini Vision')
     .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
 
-  const PORT = process.env.PORT || 3000;
-  await app.listen(PORT, () => {
-    console.log(`🚀 AI Fashion Try-On API đang chạy tại: http://localhost:${PORT}`);
-    console.log(`📍 Endpoint: POST http://localhost:${PORT}/api/try-on`);
-    console.log(`📖 Swagger UI: http://localhost:${PORT}/api/docs`);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
   });
+
+  // ─── Start ────────────────────────────────────────────────────────────────
+  const PORT = process.env.PORT ?? 3000;
+  await app.listen(PORT);
+
+  logger.log(`🚀 Server running at: http://localhost:${PORT}/api`);
+  logger.log(`📖 Swagger UI:        http://localhost:${PORT}/api/docs`);
+  logger.log(`👗 Try-On endpoint:   POST http://localhost:${PORT}/api/try-on`);
+  logger.log(`🎨 Stylist endpoint:  POST http://localhost:${PORT}/api/stylist/analyze`);
 }
 
 bootstrap();
