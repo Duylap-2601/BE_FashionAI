@@ -1,37 +1,28 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenerativeAI, Part } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { StylistRequestDto } from './dto/stylist-request.dto';
 import { StylistResponseDto } from './dto/stylist-response.dto';
-import { GEMINI_CONSTANTS } from '../../common/constants/app.constants';
 
 @Injectable()
 export class StylistService {
   private readonly logger = new Logger(StylistService.name);
-  private readonly genAI: GoogleGenerativeAI;
+  private readonly ai: GoogleGenAI;
+  private readonly MODEL = 'gemini-3.5-flash';
 
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       this.logger.warn('GEMINI_API_KEY chưa được cấu hình trong .env');
     }
-    this.genAI = new GoogleGenerativeAI(apiKey ?? '');
+    this.ai = new GoogleGenAI({ apiKey: apiKey ?? '' });
   }
 
   async analyzeAndAdvise(
     humanImage: Express.Multer.File,
     dto: StylistRequestDto,
   ): Promise<StylistResponseDto> {
-    this.logger.log(`Phân tích AI Stylist cho trang phục: ${dto.garmentDescription}`);
-
-    const model = this.genAI.getGenerativeModel({ model: GEMINI_CONSTANTS.MODEL });
-
-    const imagePart: Part = {
-      inlineData: {
-        data: humanImage.buffer.toString('base64'),
-        mimeType: humanImage.mimetype as 'image/jpeg' | 'image/png' | 'image/webp',
-      },
-    };
+    this.logger.log(`AI Stylist phân tích: ${dto.garmentDescription}`);
 
     const prompt = `Bạn là một chuyên gia thời trang cao cấp (Personal Stylist) chuyên về trang phục công sở.
 
@@ -62,8 +53,25 @@ Trả về dưới dạng JSON hợp lệ với đúng các key sau (không thê
 }`;
 
     try {
-      const result = await model.generateContent([prompt, imagePart]);
-      const responseText = result.response.text().trim();
+      const response = await this.ai.models.generateContent({
+        model: this.MODEL,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: humanImage.mimetype,
+                  data: humanImage.buffer.toString('base64'),
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const responseText = response.text?.trim() ?? '';
 
       // Parse JSON - loại bỏ markdown code block nếu có
       const jsonStr = responseText
@@ -78,10 +86,24 @@ Trả về dưới dạng JSON hợp lệ với đúng các key sau (không thê
     } catch (error: any) {
       this.logger.error(`Lỗi Gemini Vision: ${error.message}`);
 
-      if (error.message?.includes('API_KEY')) {
+      if (error.message?.includes('API_KEY') || error.message?.includes('401')) {
         throw new HttpException(
           { statusCode: 401, message: 'GEMINI_API_KEY không hợp lệ hoặc chưa cấu hình', error: 'INVALID_API_KEY' },
           HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      if (error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('Too Many Requests')) {
+        const retryMatch = error.message?.match(/Please retry in (\d+)/);
+        const retrySeconds = retryMatch ? retryMatch[1] : '60';
+        throw new HttpException(
+          {
+            statusCode: 429,
+            message: `Gemini API đang bị giới hạn quota. Vui lòng thử lại sau ${retrySeconds} giây.`,
+            error: 'QUOTA_EXCEEDED',
+            retryAfterSeconds: parseInt(retrySeconds),
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
         );
       }
 

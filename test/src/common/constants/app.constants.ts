@@ -16,6 +16,6 @@ export const GRADIO_CONSTANTS = {
 } as const;
 
 export const GEMINI_CONSTANTS = {
-  MODEL: 'gemini-2.0-flash-exp',
+  MODEL: 'gemini-1.5-flash',
   MAX_TOKENS: 1024,
 } as const;
