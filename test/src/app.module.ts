@@ -1,13 +1,23 @@
 import { Module } from '@nestjs/common';
-import { TryOnModule } from './try-on/try-on.module';
+import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { TryOnModule } from './modules/try-on/try-on.module';
+import { StylistModule } from './modules/stylist/stylist.module';
 
-/**
- * AppModule - Module chính của ứng dụng NestJS
- * Import TryOnModule để sử dụng tính năng virtual try-on
- */
 @Module({
-  imports: [TryOnModule],
-  controllers: [],
-  providers: [],
+  imports: [
+    // Load biến môi trường từ .env toàn cục
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+
+    // Feature Modules
+    TryOnModule,
+    StylistModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}

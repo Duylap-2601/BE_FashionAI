@@ -29,6 +29,10 @@ src/
 
 ## 🚀 Cài Đặt & Chạy
 
+**📖 Hướng dẫn chi tiết:** Xem file [GETTING_STARTED.md](./GETTING_STARTED.md) để có hướng dẫn từng bước tương tự, bao gồm cả các vấn đề thường gặp.
+
+### Quick Start (1 phút):
+
 ### 1. Cài đặt Dependencies
 
 ```bash
